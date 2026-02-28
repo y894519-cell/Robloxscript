@@ -4,18 +4,31 @@ if game.PlaceId ~= TargetID and game.GameId ~= TargetID then
     return 
 end
 
--- 2. Configuration
+-- 2. Configuration & State
 local ScreenGui = Instance.new("ScreenGui")
 local MainFrame = Instance.new("Frame")
 local Sidebar = Instance.new("Frame")
 
--- State Variables
 local reachEnabled, reachValue = false, 0
 local speedEnabled, walkSpeedValue = false, 0 
 local powerBallEnabled, powerValue = false, 0
 local gkReachEnabled, gkReachValue = false, 0
 local selectedColor = Color3.new(1, 1, 1)
 local playerVisualizer = nil 
+
+-- GK Indicator UI (The "I'm in GK mode" badge)
+local GKIndicator = Instance.new("TextLabel")
+GKIndicator.Size = UDim2.new(0, 100, 0, 30)
+GKIndicator.Position = UDim2.new(0.5, -50, 0, 50)
+GKIndicator.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+GKIndicator.Text = "GK REACH: ON"
+GKIndicator.TextColor3 = Color3.new(1, 1, 1)
+GKIndicator.Font = Enum.Font.SourceSansBold
+GKIndicator.TextSize = 14
+GKIndicator.Visible = false
+GKIndicator.Parent = ScreenGui
+local GKCorner = Instance.new("UICorner", GKIndicator)
+GKCorner.CornerRadius = UDim.new(0, 8)
 
 local function KillShadow(obj)
     if obj:IsA("GuiObject") then
@@ -33,7 +46,7 @@ local function Round(obj, amount)
     corner.Parent = obj
 end
 
-ScreenGui.Name = "FinalExecutor_v52"
+ScreenGui.Name = "FinalExecutor_v53"
 ScreenGui.Parent = game:GetService("CoreGui")
 ScreenGui.ResetOnSpawn = false
 
@@ -47,7 +60,7 @@ MainFrame.Parent = ScreenGui
 KillShadow(MainFrame)
 Round(MainFrame, 12)
 
--- Exit Warning Frame
+-- Exit Warning
 local ExitWarn = Instance.new("Frame")
 ExitWarn.Size = UDim2.new(0, 280, 0, 140)
 ExitWarn.Position = UDim2.new(0.5, -140, 0.5, -70)
@@ -58,12 +71,9 @@ ExitWarn.Parent = MainFrame
 Round(ExitWarn, 10)
 
 local WarnLabel = Instance.new("TextLabel")
-WarnLabel.Size = UDim2.new(1, 0, 0, 60)
-WarnLabel.BackgroundTransparency = 1
+WarnLabel.Size, WarnLabel.BackgroundTransparency = UDim2.new(1, 0, 0, 60), 1
 WarnLabel.Text = "Are you sure you want to\nclose the script?"
-WarnLabel.TextColor3 = Color3.new(1, 1, 1)
-WarnLabel.Font = Enum.Font.SourceSansBold
-WarnLabel.TextSize = 18
+WarnLabel.TextColor3, WarnLabel.Font, WarnLabel.TextSize = Color3.new(1, 1, 1), Enum.Font.SourceSansBold, 18
 WarnLabel.ZIndex = 11
 WarnLabel.Parent = ExitWarn
 
@@ -119,22 +129,22 @@ local BallPage = CreatePage("Ball")
 local PlayerPage = CreatePage("Player")
 local GKPage = CreatePage("GK")
 
--- 4. Sidebar Navigation
+-- 4. Sidebar Nav
 local navButtons = {}
-local activeColor = Color3.fromRGB(0, 120, 255)
-local idleColor = Color3.fromRGB(35, 35, 35)
+local activeNavColor = Color3.fromRGB(0, 120, 255)
+local idleNavColor = Color3.fromRGB(35, 35, 35)
 
 local function UpdateNavColors(activeName)
     for name, btn in pairs(navButtons) do
         if name == "Exit" then continue end
-        btn.BackgroundColor3 = (name == activeName) and activeColor or idleColor
+        btn.BackgroundColor3 = (name == activeName) and activeNavColor or idleNavColor
     end
 end
 
 local function NavBtn(txt, order, cb, isExit)
     local b = Instance.new("TextButton", Sidebar)
     b.Size, b.LayoutOrder = UDim2.new(0.85, 0, 0, 35), order
-    b.BackgroundColor3 = isExit and Color3.fromRGB(100, 0, 0) or idleColor
+    b.BackgroundColor3 = isExit and Color3.fromRGB(100, 0, 0) or idleNavColor
     b.Text, b.TextColor3, b.Font, b.TextSize = txt, Color3.new(1,1,1), Enum.Font.SourceSansBold, 14
     Round(b, 6)
     navButtons[txt] = b
@@ -149,7 +159,7 @@ NavBtn("Player", 2, function() BallPage.Visible, PlayerPage.Visible, GKPage.Visi
 NavBtn("GK", 3, function() BallPage.Visible, PlayerPage.Visible, GKPage.Visible = false, false, true end)
 NavBtn("Exit", 4, function() ExitWarn.Visible = true end, true)
 
--- 5. Logic Loops
+-- 5. Logic Loop
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
 local LP = game.Players.LocalPlayer
@@ -160,26 +170,24 @@ RunService.Heartbeat:Connect(function()
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if not root or not hum then return end
 
-    -- Speed Hack
     if speedEnabled then
         root.CFrame = root.CFrame + (hum.MoveDirection * (walkSpeedValue * 0.04))
     end
 
-    -- Reach Logic (Combines Player and GK reach)
-    local activeReach = 0
-    if reachEnabled then activeReach = reachValue end
-    if gkReachEnabled and gkReachValue > activeReach then activeReach = gkReachValue end
+    local finalReach = 0
+    if reachEnabled then finalReach = reachValue end
+    if gkReachEnabled and gkReachValue > finalReach then finalReach = gkReachValue end
 
-    if activeReach > 0 then
+    if finalReach > 0 then
         if not playerVisualizer then
             playerVisualizer = Instance.new("Part", workspace)
             playerVisualizer.CastShadow, playerVisualizer.CanCollide, playerVisualizer.Anchored = false, false, true
             playerVisualizer.Material = Enum.Material.Neon
         end
         playerVisualizer.Transparency, playerVisualizer.Color = 0.8, selectedColor
-        playerVisualizer.Size, playerVisualizer.CFrame = Vector3.new(activeReach, activeReach, activeReach), root.CFrame
+        playerVisualizer.Size, playerVisualizer.CFrame = Vector3.new(finalReach, finalReach, finalReach), root.CFrame
         
-        local parts = workspace:GetPartBoundsInBox(root.CFrame, Vector3.new(activeReach, activeReach, activeReach))
+        local parts = workspace:GetPartBoundsInBox(root.CFrame, Vector3.new(finalReach, finalReach, finalReach))
         for _, part in pairs(parts) do
             if part.Name ~= "Baseplate" and not part:IsDescendantOf(char) then
                 firetouchinterest(root, part, 0)
@@ -189,7 +197,7 @@ RunService.Heartbeat:Connect(function()
     elseif playerVisualizer then playerVisualizer.Transparency = 1 end
 end)
 
--- 6. Section Creator
+-- 6. UI Creation
 local function CreateHackSection(parent, title, sectionType)
     local container = Instance.new("Frame")
     container.Size, container.BackgroundColor3 = UDim2.new(0.95, 0, 0, 120), Color3.fromRGB(10, 10, 10)
@@ -250,13 +258,12 @@ local function CreateHackSection(parent, title, sectionType)
     return swBG, swCirc, sliBtn, back, valLab, scrollContent
 end
 
--- Create All Sections
 local Rsw, Rcirc, Rsli, Rback, Rval, Rscroll = CreateHackSection(PlayerPage, "Reach", "reach")
 local Ssw, Scirc, Ssli, Sback, Sval, Sscroll = CreateHackSection(PlayerPage, "Speed Mode", "speed")
 local Bsw, Bcirc, Bsli, Bback, Bval, Bscroll = CreateHackSection(BallPage, "Power Ball", "powerball")
 local Gsw, Gcirc, Gsli, Gback, Gval, Gscroll = CreateHackSection(GKPage, "GK Reach", "gkreach")
 
--- 7. Logic Wiring
+-- 7. Functionality Wiring
 local function HandleSlider(button, back, min, max, callback)
     local drag = false
     button.MouseButton1Down:Connect(function() drag = true end)
@@ -277,7 +284,11 @@ local function SetupToggle(btn, circ, scroll, type)
         if type == "reach" then reachEnabled = not reachEnabled active = reachEnabled
         elseif type == "speed" then speedEnabled = not speedEnabled active = speedEnabled
         elseif type == "powerball" then powerBallEnabled = not powerBallEnabled active = powerBallEnabled
-        elseif type == "gkreach" then gkReachEnabled = not gkReachEnabled active = gkReachEnabled end
+        elseif type == "gkreach" then 
+            gkReachEnabled = not gkReachEnabled 
+            active = gkReachEnabled
+            GKIndicator.Visible = active -- SHOW THE NEW GK INDICATOR UI
+        end
         scroll.Visible = active
         game:GetService("TweenService"):Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = active and Color3.fromRGB(0, 100, 255) or Color3.fromRGB(30, 30, 30)}):Play()
         game:GetService("TweenService"):Create(circ, TweenInfo.new(0.2), {Position = active and UDim2.new(0, 25, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)}):Play()
@@ -294,7 +305,7 @@ HandleSlider(Ssli, Sback, 0, 15, function(v) walkSpeedValue = v Sval.Text = v en
 HandleSlider(Bsli, Bback, 0, 100, function(v) powerValue = v Bval.Text = v end)
 HandleSlider(Gsli, Gback, 0, 60, function(v) gkReachValue = v Gval.Text = v end)
 
--- Dragging & Exit Warning
+-- Dragging & Logic
 NoBtn.MouseButton1Click:Connect(function() ExitWarn.Visible = false end)
 YesBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() if playerVisualizer then playerVisualizer:Destroy() end end)
 
@@ -302,6 +313,10 @@ local dragging, dragStart, startPos
 DragCircle.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging, dragStart, startPos = true, input.Position, MainFrame.Position end end)
 UIS.InputChanged:Connect(function(input) if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then local delta = input.Position - dragStart MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y) end end)
 UIS.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
+
+UIS.InputBegan:Connect(function(input, gpe)
+    if not gpe and input.KeyCode == Enum.KeyCode.RightAlt then MainFrame.Visible = not MainFrame.Visible end
+end)
 
 UpdateNavColors("Player")
 PlayerPage.Visible = true
